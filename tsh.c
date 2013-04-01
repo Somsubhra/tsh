@@ -505,5 +505,17 @@ void sigquit_handler(int sig)
     exit(1);
 }
 
+/**
+ * @brief Fork Wrapper function for fork
+ * @return The pid of the child
+ */
+pid_t Fork(void){
+    pid_t pid;
 
+    if((pid = fork()) < 0){
+        unix_error("Fatal: Fork Error!");
+    }
+
+    return pid;
+}
 
