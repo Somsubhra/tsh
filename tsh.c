@@ -165,6 +165,41 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
+    char *argv[MAXARGS];                    //Arguements for execve()
+    int bg;                                 //Determines whether the job will run in foreground or background
+    pid_t pid;                              //Contains the process id
+    struct job_t *jd;
+
+    bg = parseline(cmdline, argv);          //Copies contents of cmdline into argv and returns whether the job should run in background or foreground
+
+    if(argv[0] == NULL){
+        return;                             //If command line s empty then do nothing, return
+    }
+
+    if(!builtin_cmd(argv)){                 //Checks whether command is built-in and executes it if yes, else enters if block
+        if((pid == Fork() == 0)){           //Run user process in a child
+            if(execve(argv[0], argv, environ) < 0){     //executes user command if successful
+                printf("%s: Command not found.\n", argv[0]);    //Throw error if execution unsuccessful
+                exit(0);
+            }
+        }
+
+        if(!bg){                            //If process is foreground, parent waits for the job to terminate
+            addjob(jobs, pid, FG, cmdline); //Add the process to jobs
+            waitfg(pid);                    //Parent waits for the foreground process to terminate
+            jd = getjobpid(jobs, pid);      //Get the jobpid
+            if(jd != NULL && jd->state != ST){    //If job is stopped or null
+                kill(pid, SIGKILL);         //Send a SIGKILL to the job
+                deletejob(jobs, pid);       //Delete job after it is terminated
+            }
+        }
+
+        else{                               //If process is a background
+            addjob(jobs, pid, BG, cmdline); //Add the process to jobs
+            jd = getjobpid(jobs, pid);      //Get the jobpid
+            printf("[%d] (%d) %s", jd->jid, jd->pid, jd->cmdline);  //Print the details of background job
+        }
+    }
     return;
 }
 
