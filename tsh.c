@@ -194,10 +194,10 @@ void eval(char *cmdline)
             }
         }
 
-        else{                               //If process is a background
-            addjob(jobs, pid, BG, cmdline); //Add the process to jobs
-            jd = getjobpid(jobs, pid);      //Get the jobpid
-            printf("[%d] (%d) %s", jd->jid, jd->pid, jd->cmdline);  //Print the details of background job
+        else{                                                                   //If process is a background
+            addjob(jobs, pid, BG, cmdline);                                     //Add the process to jobs
+            jd = getjobpid(jobs, pid);                                          //Get the jobpid
+            printf("[%d] (%d) %s", jd->jid, jd->pid, jd->cmdline);              //Print the details of background job
         }
     }
     return;
@@ -266,7 +266,26 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
-    return 0;     /* not a builtin command */
+    if(!strcmp(argv[0], "quit")){                                                   //If arguement is quit
+        exit(0);                                                                    //exit the shell
+    }
+
+    if(!strcmp(argv[0], "jobs")){                                                   //If arguement is jobs
+        listjobs(jobs);                                                             //List all the jobs
+        return 1;
+    }
+
+    if(!strcmp(argv[0], "bg")){                                                     //If arguement is bg
+        do_bgfg(argv);                                                              //jump to do_bgfg
+        return 1;
+    }
+
+    if(!strcmp(argv[0], "fg")){                                                     //If arguement is fg
+        do_bgfg(argv);                                                              //jump to do_bgfg
+        return 1;
+    }
+
+    return 0;                                                                       //not a builtin command
 }
 
 /* 
