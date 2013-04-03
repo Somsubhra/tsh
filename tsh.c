@@ -1,4 +1,4 @@
-/* 
+/*
  * tsh - A tiny shell program with job control
  * 
  * Somsubhra (201101056)
@@ -165,7 +165,7 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
-    char *argv[MAXARGS];                                                        //Arguements for execve()
+    char *argv[MAXARGS];                                                        //arguments for execve()
     int bg;                                                                     //Determines whether the job will run in foreground or background
     pid_t pid;                                                                  //Contains the process id
     struct job_t *jd;
@@ -266,21 +266,21 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
-    if(!strcmp(argv[0], "quit")){                                                   //If arguement is quit
+    if(!strcmp(argv[0], "quit")){                                                   //If argument is quit
         exit(0);                                                                    //exit the shell
     }
 
-    if(!strcmp(argv[0], "jobs")){                                                   //If arguement is jobs
+    if(!strcmp(argv[0], "jobs")){                                                   //If argument is jobs
         listjobs(jobs);                                                             //List all the jobs
         return 1;
     }
 
-    if(!strcmp(argv[0], "bg")){                                                     //If arguement is bg
+    if(!strcmp(argv[0], "bg")){                                                     //If argument is bg
         do_bgfg(argv);                                                              //jump to do_bgfg
         return 1;
     }
 
-    if(!strcmp(argv[0], "fg")){                                                     //If arguement is fg
+    if(!strcmp(argv[0], "fg")){                                                     //If argument is fg
         do_bgfg(argv);                                                              //jump to do_bgfg
         return 1;
     }
@@ -293,6 +293,56 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
+    struct job_t *jd;                                                               //Store the job structure
+    int tmp;                                                                        //Stores the process id or job id
+
+    if(!strcmp(argv[0], "bg")){                                                     //If argument is bg
+        if(argv[1][0] == '%'){                                                      //If first character is % it is a job
+            tmp = argv[1][1];                                                       //Store the jid
+            jd = getjobjid(jobs, tmp-48);                                           //get job from the jid. 48 subtracted to get integer ASCII from char
+            if(jd == NULL){                                                         //If no job is returned
+                printf("%s: No such job\n", argv[1]);                               //Throw error
+            }
+        }
+
+        else{                                                                       //If no % is present it is a process
+            tmp = atoi(argv[1]);                                                    //get the process id after converting the argument to int
+            jd = getjobpid(jobs, tmp);                                              //get the job from the pid
+            if(jd == NULL){                                                         //If no job is returned
+                printf("%d: No such process\n", tmp);                               //Throw error
+            }
+        }
+
+        printf("[%d] (%d) %s", jd->jid, jd->pid, jd->cmdline);                      //print the job details
+        kill(jd->pid, SIGCONT);                                                     //send SIGCONT signal to the job
+        jd->state = BG;                                                             //Change the state of job to Background
+    }
+
+    if(!strcmp(argv[0], "fg")){                                                     //If argument is fg
+        if(argv[1][0] == '%'){                                                      //If first character is % it is a job
+            tmp = argv[1][1];                                                       //Store the jid
+            jd = getjobjid(jobs, tmp-48);                                           //get job from the jid. 48 subtracted to get integer ASCII from char
+            if(jd == NULL){                                                         //If no job is returned
+                printf("%s: No such job\n", argv[1]);                               //Throw error
+            }
+        }
+
+        else{                                                                       //If no % is present it is a process
+            tmp = atoi(argv[1]);                                                    //get the process id after converting the argument to int
+            jd = getjobjid(jobs, tmp);                                              //get the job from the pid
+            if(jd == NULL){                                                         //If no job is returned
+                printf("(%d): No such process\n", tmp);                             //Throw error
+            }
+        }
+
+        if(jd != NULL){                                                             //If job is not null
+            waitfg(jd->pid);                                                        //Wait for the job to terminate
+            kill(jd->pid, SIGCONT);                                                 //Send SIGCONT signal to the job
+            if(jd->state != ST){                                                    //If job is not stopped
+                deletejob(jobs, jd->pid);                                           //delete the job from jobs list
+            }
+        }
+    }
     return;
 }
 
