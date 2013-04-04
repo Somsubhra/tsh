@@ -87,6 +87,7 @@ int Sigprocmask(int action, sigset_t* set, void*);
 int Sigaddset(sigset_t *set, int signal);
 int Sigemptyset(sigset_t* set);
 int Setpgid(int a, int b);
+int Kill(pid_t pid, int signal);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
 
@@ -177,10 +178,6 @@ void eval(char *cmdline)
     sigset_t mask;                                                              //The signal set which has to be bloacked before adding the job to jobs
 
     bg = parseline(cmdline, argv);                                              //Copies contents of cmdline into argv and returns whether the job should run in background or foreground
-
-    if(argv[0] == NULL){
-        return;                                                                 //If command line is empty then do nothing, return
-    }
 
     Sigemptyset(&mask);                                                         //Generate an empty signal set in mask
     Sigaddset(&mask, SIGCHLD);                                                  //Add SIGCHLD to the signal set to be blocked
@@ -304,58 +301,57 @@ int builtin_cmd(char **argv)
  */
 void do_bgfg(char **argv) 
 {
-    struct job_t *jd;                                                               //Store the job structure
-    int tmp;                                                                        //Stores the process id or job id
-    if(!strcmp(argv[0], "bg")){                                                     //If argument is bg
-        if(argv[1][0] == '%'){                                                      //If first character is % it is a job
-            tmp = argv[1][1];                                                       //Store the jid
-            jd = getjobjid(jobs, tmp-48);                                           //get job from the jid. 48 subtracted to get integer ASCII from char
-            if(jd == NULL){                                                         //If no job is returned
-                printf("%s: No such job\n", argv[1]);                               //Throw error
-            }
-        }
+    struct job_t* jd = NULL;                                                        //Store the job details
 
-        else{                                                                       //If no % is present it is a process
-            tmp = atoi(argv[1]);                                                    //get the process id after converting the argument to int
-            jd = getjobpid(jobs, tmp);                                              //get the job from the pid
-            if(jd == NULL){                                                         //If no job is returned
-                printf("%d: No such process\n", tmp);                               //Throw error
-            }
-        }
-
-        printf("[%d] (%d) %s", jd->jid, jd->pid, jd->cmdline);                      //print the job details
-        kill(jd->pid, SIGCONT);                                                     //send SIGCONT signal to the job
-        jd->state = BG;                                                             //Change the state of job to Background
+    if( argv[1] == NULL ){                                                          //If no second argument
+        printf("%s command requires PID or %%jobid argument\n", argv[0]);           //throw error
+        return;
     }
 
-    if(!strcmp(argv[0], "fg")){                                                     //If argument is fg
-        if(argv[1][0] == '%'){                                                      //If first character is % it is a job
-            tmp = argv[1][1];                                                       //Store the jid
-            jd = getjobjid(jobs, tmp-48);                                           //get job from the jid. 48 subtracted to get integer ASCII from char
-            if(jd == NULL){                                                         //If no job is returned
-                printf("%s: No such job\n", argv[1]);                               //Throw error
-            }
+    if(argv[1][0] == '%'){                                                          //If % then job id
+
+        if(!isdigit(argv[1][1])){                                                   //If not a digit
+            printf("%s: argument must be a pid or %%jobid\n", argv[0]);             //throw error
+            return;
         }
 
-        else{                                                                       //If no % is present it is a process
-            tmp = atoi(argv[1]);                                                    //get the process id after converting the argument to int
-            jd = getjobjid(jobs, tmp);                                              //get the job from the pid
-            if(jd == NULL){                                                         //If no job is returned
-                printf("(%d): No such process\n", tmp);                             //Throw error
-            }
-        }
-
-        if(jd != NULL){                                                             //If job is not null
-            jd->state = FG;                                                         //Change the state of the job to FG
-            kill(jd->pid, SIGCONT);                                                 //Send SIGCONT signal to the job
-            waitfg(jd->pid);                                                        //Wait for the job to terminate
+        int jid = atoi( &argv[1][1] );                                              //Get the jid
+        if( !( jd = getjobjid( jobs, jid ) ) ){                                     //If no such job with that jid
+            printf( "%s: no such job\n", argv[1] );                                 //throw error
+            return;
         }
     }
+
+    else{                                                                           //If no % then pid
+
+        if(!isdigit(argv[1][0])){                                                   //If not a digit
+            printf("%s: argument must be a pid or %%jobid\n", argv[0]);             //throw error
+            return;
+         }
+
+        pid_t pid = atoi( argv[1] );                                                //get the pid
+        if( !( jd = getjobpid( jobs, pid ) ) ){                                     //if no such job with that pid
+            printf( "(%s): no such process\n", argv[1]);                            //throw error
+            return;
+        }
+    }
+
+    Kill(-jd->pid, SIGCONT);                                                        //Send SIGCONT signal
+
+    if( !strcmp( argv[0],"bg" ) ){                                                  //If bg
+        jd->state = BG;                                                             //Change job state to BG
+        printf("[%d] (%d) %s",jd->jid,jd->pid,jd->cmdline);                         //print status
+    }
+
+    else {                                                                          //If fg
+        jd->state = FG;                                                             //Change job state to FG
+        waitfg( jd->pid );                                                          //Wait for the job to finish
+    }
+
     return;
-
 }
 
-/* 
+/*
  * waitfg - Block until process pid is no longer the foreground process
  */
 void waitfg(pid_t pid)
@@ -396,12 +392,12 @@ void sigchld_handler(int sig)
 
         if(WIFSTOPPED(status)){                                                     //If stopped
             jd->state = ST;                                                         //Change state of job to stopped
-            printf("Job[%d] (%d) stopped by signal: Stopped\n",jd->jid, child_pid); //print the message
+            printf("Job [%d] (%d) stopped by signal 20\n",jd->jid, child_pid); //print the message
         }
 
         else if(WIFSIGNALED(status)){                                               //If signalled
             deletejob(jobs, child_pid);                                             //Delete job from jobs list
-            printf("Job[%d] (%d) terminated by signal: Interrupt\n", jd->jid, child_pid);
+            printf("Job [%d] (%d) terminated by signal 2\n", jd->jid, child_pid);
         }
 
         else if(WIFEXITED(status)){                                                 //If exited
@@ -426,7 +422,7 @@ void sigint_handler(int sig)
     fpid = fgpid(jobs);                                                             //get the pid of the foreground job
 
     if(fpid > 0){                                                                   //If there is a running foreground job
-        kill(-fpid, SIGINT);                                                        //Send SIGINT signal to all the processes in the foreground job
+        Kill(-fpid, SIGINT);                                                        //Send SIGINT signal to all the processes in the foreground job
     }
     return;
 }
@@ -442,7 +438,7 @@ void sigtstp_handler(int sig)
     fpid = fgpid(jobs);                                                             //get the pid of the foreground job
 
     if(fpid > 0){                                                                   //If there is a running foreground job
-        kill(-fpid, SIGTSTP);                                                       //Send SIGTSTP signal to all the processes in the foreground job
+        Kill(-fpid, SIGTSTP);                                                       //Send SIGTSTP signal to all the processes in the foreground job
     }
     return;
 }
@@ -733,11 +729,26 @@ int Sigprocmask(int action, sigset_t* set, void* t){
  * @return Negative if error
  */
 int Setpgid(int a, int b){
-    int status;                                                                         //The status of the function
+    int status;                                                                             //The status of the function
 
-    if((status = setpgid(a,b) < 0)){                                                    //If setpgid fails
-        unix_error("Fatal: Setpgid Error!");                                            //throw error
+    if((status = setpgid(a,b) < 0)){                                                        //If setpgid fails
+        unix_error("Fatal: Setpgid Error!");                                                //throw error
     }
 
+    return status;
+}
+
+/**
+ * @brief Kill Wrapper function for kill
+ * @param pid The process id to whick the signal is sent
+ * @param signal The signal to be sent
+ * @return Negative if error
+ */
+int Kill(pid_t pid, int signal){
+    int status;                                                                             //The status of function
+
+    if((status = kill(pid, signal) < 0)){                                                   //If kill fails
+        unix_error("Fatal: Kill Error!");                                                   //throw error
+    }
     return status;
 }
