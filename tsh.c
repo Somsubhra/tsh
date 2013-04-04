@@ -376,6 +376,34 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+    pid_ child_pid;                                                                 //Stores the child pid
+    int status;                                                                     //Status variable
+
+    while((child_pid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0){               //Get the child pid in the loop
+        struct job_t *jd = getjobpid(jobs, child_pid);                              //Get job detail of the child
+        if(!jd){                                                                    //If no job
+            printf("((%d): No such child");                                         //Throw error
+            return;
+        }
+
+        if(WIFSTOPPED(status)){                                                     //If stopped
+            jd->state = ST;                                                         //Change state of job to stopped
+            printf("Job[%d] (%d) stopped by signal: Stopped\n",jd->jid, child_pid); //print the message
+        }
+
+        else if(WIFSIGNALED(status)){                                               //If signalled
+            deletejob(jobs, child_pid);                                             //Delete job from jobs list
+            printf("Job[%d] (%d) terminated by signal: Interrupt\n", jd->jid, child_pid);
+        }
+
+        else if(WIFEXITED(status)){                                                 //If exited
+            deletejob(jobs, child_pid);                                             //Delete from jobs list
+        }
+
+        else{                                                                       //If nothing
+            unix_error("waipid error");                                             //throw error
+        }
+    }
     return;
 }
 
@@ -386,6 +414,16 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+    pid_t fpid;                                                                     //Stores the pid of the foreground job
+    struct job_t *jd;                                                               //Stores the job details
+    fpid = fgpid(jobs);                                                             //get the pid of the foreground job
+    jd = getjobpid(jobs, fpid);                                                     //Get the job from the pid of the foreground job
+
+    if(fpid > 0){                                                                   //If there is a running foreground job
+        printf("Job[%d] (%d) terminated by signal: Interrupt\n", jd->jid, fpid);    //Print the termination message
+        kill(-fpid, SIGINT);                                                        //Send SIGINT signal to all the processes in the foreground job
+        deletejob(jobs, fpid);                                                      //Delete the foreground job from the jobs list
+    }
     return;
 }
 
@@ -396,6 +434,16 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+    pid_t fpid;                                                                     //Stores the pid of the foreground job
+    struct job_t *jd;                                                               //Stores the job details
+    fpid = fgpid(jobs);                                                             //get the pid of the foreground job
+    jd = getjobpid(jobs, fpid);                                                     //Get the job from the pid of the foreground job
+
+    if(fpid > 0){                                                                   //If there is a running foreground job
+        printf("Job[%d] (%d) stopped by signal: Stopped\n", jd->jid, fpid);         //Print the stop message
+        kill(-fpid, SIGSTP);                                                        //Send SIGSTP signal to all the processes in the foreground job
+        jd->state = ST;                                                             //Make the state of the foreground job to Stopped
+    }
     return;
 }
 
