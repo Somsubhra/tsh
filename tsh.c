@@ -456,7 +456,7 @@ void sigtstp_handler(int sig)
 
     if(fpid > 0){                                                                   //If there is a running foreground job
         printf("Job[%d] (%d) stopped by signal: Stopped\n", jd->jid, fpid);         //Print the stop message
-        kill(-fpid, SIGTSTP);                                                        //Send SIGTSTP signal to all the processes in the foreground job
+        kill(-fpid, SIGTSTP);                                                       //Send SIGTSTP signal to all the processes in the foreground job
         jd->state = ST;                                                             //Make the state of the foreground job to Stopped
     }
     return;
