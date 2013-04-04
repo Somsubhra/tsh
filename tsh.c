@@ -86,6 +86,7 @@ pid_t Fork(void);
 int Sigprocmask(int action, sigset_t* set, void*);
 int Sigaddset(sigset_t *set, int signal);
 int Sigemptyset(sigset_t* set);
+int Setpgid(int a, int b);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
 
@@ -178,7 +179,7 @@ void eval(char *cmdline)
     bg = parseline(cmdline, argv);                                              //Copies contents of cmdline into argv and returns whether the job should run in background or foreground
 
     if(argv[0] == NULL){
-        return;                                                                 //If command line s empty then do nothing, return
+        return;                                                                 //If command line is empty then do nothing, return
     }
 
     Sigemptyset(&mask);                                                         //Generate an empty signal set in mask
@@ -189,6 +190,7 @@ void eval(char *cmdline)
 
     if(!builtin_cmd(argv)){                                                     //Checks whether command is built-in and executes it if yes, else enters if block
         if((pid = Fork()) == 0){                                                //Run user process in a child
+            Setpgid(0,0);                                                       //New jobs should have new process id's else signal will kill shell also
             if(execve(argv[0], argv, environ) < 0){                             //executes user command if successful
                 printf("%s: Command not found.\n", argv[0]);                    //Throw error if execution unsuccessful
                 exit(0);
@@ -734,6 +736,22 @@ int Sigprocmask(int action, sigset_t* set, void* t){
 
     if((status = sigprocmask(action, set, NULL))){                                          //If sigprocmask fails
         unix_error("Fatal: Sigprocmask Error!");                                            //throw error
+    }
+
+    return status;
+}
+
+/**
+ * @brief Setpgid Wrapper function for setpgid
+ * @param a
+ * @param b
+ * @return Negative if error
+ */
+int Setpgid(int a, int b){
+    int status;                                                                         //The status of the function
+
+    if((status = setpgid(a,b) < 0)){                                                    //If setpgid fails
+        unix_error("Fatal: Setpgid Error!");                                            //throw error
     }
 
     return status;
