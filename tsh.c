@@ -672,12 +672,57 @@ void sigquit_handler(int sig)
  * @return The pid of the child
  */
 pid_t Fork(void){
-    pid_t pid;
+    pid_t pid;                                                                              //The pid of the child process
 
-    if((pid = fork()) < 0){
-        unix_error("Fatal: Fork Error!");
+    if((pid = fork()) < 0){                                                                 //If fork is unsuccessful
+        unix_error("Fatal: Fork Error!");                                                   //Throw error
     }
 
-    return pid;
+    return pid;                                                                             //Return pid of the child process to parent or 0 to child
 }
 
+/**
+ * @brief Sigemptyset Wrapper function for sigemptyset
+ * @param set The signal set to be generated
+ * @return 0 if success, -1 if error
+ */
+int Sigemptyset(sigset_t* set){
+    int status;                                                                             //The status of the function
+
+    if((status = sigemptyset(set))){                                                        //If sigemptyset fails
+        unix_error("Fatal: Sigemptyset Error!");                                            //Throw error
+    }
+    return status;
+}
+
+/**
+ * @brief Sigaddset Wrapper function for sigaddset
+ * @param set The signal set to be added in
+ * @param signal The  signal to be added
+ * @return 0 if success, -1 if error
+ */
+int Sigaddset(sigset_t *set, int signal){
+    int status;                                                                             //The status of the function
+
+    if((status = sigaddset(set, signal))){                                                  //If sigaddset fails
+        unix_error("Fatal: Sigaddset Error!");                                              //throw error
+    }
+    return status;
+}
+
+/**
+ * @brief Sigprocmask Wrapper function for sigprocmask
+ * @param action The action to be carried on the set
+ * @param set The signal set on which the action is to be done
+ * @param t NULL
+ * @return  0 if success, -1 if error
+ */
+int Sigprocmask(int action, sigset_t* set, int t){
+    int status;                                                                             //The status if the function
+
+    if((status = sigprocmask(action, set, NULL))){                                          //If sigprocmask fails
+        unix_error("Fatal: Sigprocmask Error!");                                            //throw error
+    }
+
+    return status;
+}
