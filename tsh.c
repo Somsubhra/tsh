@@ -338,12 +338,12 @@ void do_bgfg(char **argv)
 
     Kill(-jd->pid, SIGCONT);                                                        //Send SIGCONT signal
 
-    if( !strcmp( argv[0],"bg" ) ){                                                  //If bg
+    if( !strcmp( argv[0],"bg" ) ){                                                  //If background
         jd->state = BG;                                                             //Change job state to BG
         printf("[%d] (%d) %s",jd->jid,jd->pid,jd->cmdline);                         //print status
     }
 
-    else {                                                                          //If fg
+    else {                                                                          //If foreground
         jd->state = FG;                                                             //Change job state to FG
         waitfg( jd->pid );                                                          //Wait for the job to finish
     }
@@ -392,7 +392,7 @@ void sigchld_handler(int sig)
 
         if(WIFSTOPPED(status)){                                                     //If stopped
             jd->state = ST;                                                         //Change state of job to stopped
-            printf("Job [%d] (%d) stopped by signal 20\n",jd->jid, child_pid); //print the message
+            printf("Job [%d] (%d) stopped by signal 20\n",jd->jid, child_pid);      //print the message
         }
 
         else if(WIFSIGNALED(status)){                                               //If signalled
