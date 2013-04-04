@@ -82,6 +82,7 @@ void listjobs(struct job_t *jobs);
 void usage(void);
 void unix_error(char *msg);
 void app_error(char *msg);
+pid_t Fork(void);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
 
@@ -177,7 +178,7 @@ void eval(char *cmdline)
     }
 
     if(!builtin_cmd(argv)){                                                     //Checks whether command is built-in and executes it if yes, else enters if block
-        if((pid == Fork() == 0)){                                               //Run user process in a child
+        if((pid = Fork()) == 0){                                                //Run user process in a child
             if(execve(argv[0], argv, environ) < 0){                             //executes user command if successful
                 printf("%s: Command not found.\n", argv[0]);                    //Throw error if execution unsuccessful
                 exit(0);
@@ -376,13 +377,13 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-    pid_ child_pid;                                                                 //Stores the child pid
+    pid_t child_pid;                                                                //Stores the child pid
     int status;                                                                     //Status variable
 
     while((child_pid = waitpid(-1, &status, WNOHANG|WUNTRACED)) > 0){               //Get the child pid in the loop
         struct job_t *jd = getjobpid(jobs, child_pid);                              //Get job detail of the child
         if(!jd){                                                                    //If no job
-            printf("((%d): No such child");                                         //Throw error
+            printf("((%d): No such child", child_pid);                              //Throw error
             return;
         }
 
@@ -441,7 +442,7 @@ void sigtstp_handler(int sig)
 
     if(fpid > 0){                                                                   //If there is a running foreground job
         printf("Job[%d] (%d) stopped by signal: Stopped\n", jd->jid, fpid);         //Print the stop message
-        kill(-fpid, SIGSTP);                                                        //Send SIGSTP signal to all the processes in the foreground job
+        kill(-fpid, SIGTSTP);                                                        //Send SIGTSTP signal to all the processes in the foreground job
         jd->state = ST;                                                             //Make the state of the foreground job to Stopped
     }
     return;
