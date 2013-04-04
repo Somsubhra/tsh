@@ -83,6 +83,9 @@ void usage(void);
 void unix_error(char *msg);
 void app_error(char *msg);
 pid_t Fork(void);
+int Sigprocmask(int action, sigset_t* set, void*);
+int Sigaddset(sigset_t *set, int signal);
+int Sigemptyset(sigset_t* set);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
 
@@ -170,12 +173,19 @@ void eval(char *cmdline)
     int bg;                                                                     //Determines whether the job will run in foreground or background
     pid_t pid;                                                                  //Contains the process id
     struct job_t *jd;
+    sigset_t mask;                                                              //The signal set which has to be bloacked before adding the job to jobs
 
     bg = parseline(cmdline, argv);                                              //Copies contents of cmdline into argv and returns whether the job should run in background or foreground
 
     if(argv[0] == NULL){
         return;                                                                 //If command line s empty then do nothing, return
     }
+
+    Sigemptyset(&mask);                                                         //Generate an empty signal set in mask
+    Sigaddset(&mask, SIGCHLD);                                                  //Add SIGCHLD to the signal set to be blocked
+    Sigaddset(&mask, SIGINT);                                                   //Add SIGINT to the signal set to be blocked
+    Sigaddset(&mask, SIGTSTP);                                                  //Add SIGTSTP to the signal set to be blocked
+    Sigprocmask(SIG_BLOCK, &mask, NULL);                                        //Blocked the signal set
 
     if(!builtin_cmd(argv)){                                                     //Checks whether command is built-in and executes it if yes, else enters if block
         if((pid = Fork()) == 0){                                                //Run user process in a child
@@ -187,6 +197,7 @@ void eval(char *cmdline)
 
         if(!bg){                                                                //If process is foreground, parent waits for the job to terminate
             addjob(jobs, pid, FG, cmdline);                                     //Add the process to jobs
+            Sigprocmask(SIG_UNBLOCK, &mask, NULL);                              //Unblock the signal set afet adding the job
             waitfg(pid);                                                        //Parent waits for the foreground process to terminate
             jd = getjobpid(jobs, pid);                                          //Get the jobpid
             if(jd != NULL && jd->state != ST){                                  //If job is stopped or null
@@ -197,6 +208,7 @@ void eval(char *cmdline)
 
         else{                                                                   //If process is a background
             addjob(jobs, pid, BG, cmdline);                                     //Add the process to jobs
+            Sigprocmask(SIG_UNBLOCK, &mask, NULL);                              //Unblock the signal set afet adding the job
             jd = getjobpid(jobs, pid);                                          //Get the jobpid
             printf("[%d] (%d) %s", jd->jid, jd->pid, jd->cmdline);              //Print the details of background job
         }
@@ -717,7 +729,7 @@ int Sigaddset(sigset_t *set, int signal){
  * @param t NULL
  * @return  0 if success, -1 if error
  */
-int Sigprocmask(int action, sigset_t* set, int t){
+int Sigprocmask(int action, sigset_t* set, void* t){
     int status;                                                                             //The status if the function
 
     if((status = sigprocmask(action, set, NULL))){                                          //If sigprocmask fails
