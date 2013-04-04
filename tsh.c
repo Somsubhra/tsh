@@ -1,7 +1,7 @@
 /*
  * tsh - A tiny shell program with job control
  * 
- * Somsubhra (201101056)
+ * @author Somsubhra Bairi (201101056@daiict.ac.in)
  */
 #include <stdio.h>
 #include <stdlib.h>
