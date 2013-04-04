@@ -336,8 +336,9 @@ void do_bgfg(char **argv)
         }
 
         if(jd != NULL){                                                             //If job is not null
-            waitfg(jd->pid);                                                        //Wait for the job to terminate
+            jd->state = FG;                                                         //Change the state of the job to FG
             kill(jd->pid, SIGCONT);                                                 //Send SIGCONT signal to the job
+            waitfg(jd->pid);                                                        //Wait for the job to terminate
             if(jd->state != ST){                                                    //If job is not stopped
                 deletejob(jobs, jd->pid);                                           //delete the job from jobs list
             }
@@ -351,6 +352,14 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+    struct job_t *fg_job = getjobpid(jobs, pid);                                    //Get the foreground job
+    if(!fg_job){                                                                    //If no foreground job
+        return;                                                                     //return without doing anything
+    }
+
+    while(fg_job->pid == pid && fg_job->state == FG){                               //If job is FG
+        sleep(1);                                                                   //then sleep
+    }
     return;
 }
 
