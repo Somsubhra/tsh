@@ -186,11 +186,12 @@ void eval(char *cmdline)
     Sigaddset(&mask, SIGCHLD);                                                  //Add SIGCHLD to the signal set to be blocked
     Sigaddset(&mask, SIGINT);                                                   //Add SIGINT to the signal set to be blocked
     Sigaddset(&mask, SIGTSTP);                                                  //Add SIGTSTP to the signal set to be blocked
-    Sigprocmask(SIG_BLOCK, &mask, NULL);                                        //Blocked the signal set
 
     if(!builtin_cmd(argv)){                                                     //Checks whether command is built-in and executes it if yes, else enters if block
+        Sigprocmask(SIG_BLOCK, &mask, NULL);                                    //Blocked the signal set
         if((pid = Fork()) == 0){                                                //Run user process in a child
-            Setpgid(0,0);                                                       //New jobs should have new process id's else signal will kill shell also
+            Sigprocmask(SIG_UNBLOCK, &mask, NULL);                              //Unblock the signal sets in child
+            Setpgid(0,0);                                                       //New jobs should have new process ids else signal will kill shell also          
             if(execve(argv[0], argv, environ) < 0){                             //executes user command if successful
                 printf("%s: Command not found.\n", argv[0]);                    //Throw error if execution unsuccessful
                 exit(0);
@@ -200,12 +201,7 @@ void eval(char *cmdline)
         if(!bg){                                                                //If process is foreground, parent waits for the job to terminate
             addjob(jobs, pid, FG, cmdline);                                     //Add the process to jobs
             Sigprocmask(SIG_UNBLOCK, &mask, NULL);                              //Unblock the signal set afet adding the job
-            waitfg(pid);                                                        //Parent waits for the foreground process to terminate
-            jd = getjobpid(jobs, pid);                                          //Get the jobpid
-            if(jd != NULL && jd->state != ST){                                  //If job is stopped or null
-                kill(pid, SIGKILL);                                             //Send a SIGKILL to the job
-                deletejob(jobs, pid);                                           //Delete job after it is terminated
-            }
+            waitfg(pid);                                                        //Parent waits for the foreground process to terminate}
         }
 
         else{                                                                   //If process is a background
@@ -310,7 +306,6 @@ void do_bgfg(char **argv)
 {
     struct job_t *jd;                                                               //Store the job structure
     int tmp;                                                                        //Stores the process id or job id
-
     if(!strcmp(argv[0], "bg")){                                                     //If argument is bg
         if(argv[1][0] == '%'){                                                      //If first character is % it is a job
             tmp = argv[1][1];                                                       //Store the jid
@@ -354,12 +349,10 @@ void do_bgfg(char **argv)
             jd->state = FG;                                                         //Change the state of the job to FG
             kill(jd->pid, SIGCONT);                                                 //Send SIGCONT signal to the job
             waitfg(jd->pid);                                                        //Wait for the job to terminate
-            if(jd->state != ST){                                                    //If job is not stopped
-                deletejob(jobs, jd->pid);                                           //delete the job from jobs list
-            }
         }
     }
     return;
+
 }
 
 /* 
@@ -416,7 +409,7 @@ void sigchld_handler(int sig)
         }
 
         else{                                                                       //If nothing
-            unix_error("waipid error");                                             //throw error
+            unix_error("waitpid error");                                            //throw error
         }
     }
     return;
@@ -430,14 +423,10 @@ void sigchld_handler(int sig)
 void sigint_handler(int sig) 
 {
     pid_t fpid;                                                                     //Stores the pid of the foreground job
-    struct job_t *jd;                                                               //Stores the job details
     fpid = fgpid(jobs);                                                             //get the pid of the foreground job
-    jd = getjobpid(jobs, fpid);                                                     //Get the job from the pid of the foreground job
 
     if(fpid > 0){                                                                   //If there is a running foreground job
-        printf("Job[%d] (%d) terminated by signal: Interrupt\n", jd->jid, fpid);    //Print the termination message
         kill(-fpid, SIGINT);                                                        //Send SIGINT signal to all the processes in the foreground job
-        deletejob(jobs, fpid);                                                      //Delete the foreground job from the jobs list
     }
     return;
 }
@@ -450,14 +439,10 @@ void sigint_handler(int sig)
 void sigtstp_handler(int sig) 
 {
     pid_t fpid;                                                                     //Stores the pid of the foreground job
-    struct job_t *jd;                                                               //Stores the job details
     fpid = fgpid(jobs);                                                             //get the pid of the foreground job
-    jd = getjobpid(jobs, fpid);                                                     //Get the job from the pid of the foreground job
 
     if(fpid > 0){                                                                   //If there is a running foreground job
-        printf("Job[%d] (%d) stopped by signal: Stopped\n", jd->jid, fpid);         //Print the stop message
         kill(-fpid, SIGTSTP);                                                       //Send SIGTSTP signal to all the processes in the foreground job
-        jd->state = ST;                                                             //Make the state of the foreground job to Stopped
     }
     return;
 }
